@@ -98,6 +98,6 @@ void loop() {
   }
 
   // Wait before updating again
-  delay(2000);
+  delay(2000);  // Update every 2 seconds
 }
 
