@@ -56,48 +56,46 @@ void loop() {
   tft.print("Humidity: ");
   tft.println(humidity.relative_humidity, 2);  // Display humidity with 2 decimals
 
-  // Handle Web Server Client
-  WiFiClient client = server.available();  // Listen for incoming clients
-  if (client) {
-    Serial.println("New Client Connected");
-    String currentLine = "";  // To hold incoming data
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);  // Print received data to Serial Monitor
+  // Construct the dynamic kPath with updated temperature and humidity values
+  String kPath = String("/?temp=") + String(temp.temperature, 2) + "&humidity=" + String(humidity.relative_humidity, 2);
 
-        // If the client sends a newline, process the request
-        if (c == '\n') {
-          // Send HTTP response
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
-          client.println("Connection: close");
-          client.println();
+  // Send Data to the Server
+  WiFiClient c;
+  HttpClient http(c);
 
-          // HTML content
-          client.println("<!DOCTYPE html>");
-          client.println("<html>");
-          client.println("<head><title>ESP32 Sensor Data</title></head>");
-          client.println("<body>");
-          client.println("<h1>Temperature and Humidity</h1>");
-          client.print("<p>Temperature: ");
-          client.print(temp.temperature, 2);  // 2 decimal places
-          client.println(" &deg;C</p>");
-          client.print("<p>Humidity: ");
-          client.print(humidity.relative_humidity, 2);  // 2 decimal places
-          client.println(" %</p>");
-          client.println("</body>");
-          client.println("</html>");
-          break;  // Stop processing the client
+  // Make HTTP GET Request
+  int err = http.get(kHostname, kPort, kPath.c_str());
+  if (err == 0) {
+    Serial.println("Request sent successfully");
+
+    // Read Response
+    int statusCode = http.responseStatusCode();
+    if (statusCode >= 0) {
+      Serial.print("Response Status Code: ");
+      Serial.println(statusCode);
+
+      int contentLength = http.contentLength();
+      Serial.print("Content Length: ");
+      Serial.println(contentLength);
+
+      Serial.println("Response Body:");
+      while (http.connected() || http.available()) {
+        if (http.available()) {
+          char c = http.read();
+          Serial.print(c);
         }
       }
+    } else {
+      Serial.print("Error getting response: ");
+      Serial.println(statusCode);
     }
-    // Close the connection
-    client.stop();
-    Serial.println("Client Disconnected");
+  } else {
+    Serial.print("Connection failed: ");
+    Serial.println(err);
   }
+  http.stop();
 
-  // Wait before updating again
-  delay(2000);  // Update every 2 seconds
+  // Wait before sending the next request
+  delay(5000);
 }
 
