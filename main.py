@@ -1,38 +1,116 @@
-//source Code
+#include <TFT_eSPI.h>
+#include <Wire.h>
+#include <Adafruit_AHTX0.h>
 #include <WiFi.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
-#include <Adafruit_SSD1306.h>
+#include <HttpClient.h>
+#include <nvs.h>
+#include <nvs_flash.h>
 
-#define DHTPIN 15 // Pin connected to the DHT sensor
-#define DHTTYPE DHT11
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+// TFT Display Object
+TFT_eSPI tft = TFT_eSPI();
 
-DHT dht(DHTPIN, DHTTYPE);
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// I²C Configuration
+#define SDA_PIN 21  // SDA connected to GPIO 21
+#define SCL_PIN 22  // SCL connected to GPIO 22
 
-const char* ssid = "your-SSID";
-const char* password = "your-PASSWORD";
+// Adafruit AHT20 Sensor Object
+Adafruit_AHTX0 aht;
+
+// Wi-Fi credentials
+char ssid[50];  // Wi-Fi SSID
+char pass[50];  // Wi-Fi Password
+
+// Server Information
+const char kHostname[] = "34.201.245.55";  // Replace with your server IP
+const int kPort = 5000;  // Replace with your server's port
+
+// Timing Configuration
+const int kNetworkTimeout = 30 * 1000;  // 30 seconds
+const int kNetworkDelay = 1000;  // 1 second
+
+void nvs_access() {
+  // Initialize NVS
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    err = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(err);
+
+  // Open NVS
+  Serial.printf("\nOpening Non-Volatile Storage (NVS) handle... ");
+  nvs_handle_t my_handle;
+  err = nvs_open("storage", NVS_READWRITE, &my_handle);
+  if (err != ESP_OK) {
+    Serial.printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  } else {
+    Serial.printf("Done\n");
+    Serial.printf("Retrieving SSID/PASSWD\n");
+
+    size_t ssid_len = sizeof(ssid);
+    size_t pass_len = sizeof(pass);
+    err = nvs_get_str(my_handle, "ssid", ssid, &ssid_len);
+    err |= nvs_get_str(my_handle, "pass", pass, &pass_len);
+
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+      Serial.printf("SSID and password not found in NVS. Saving new credentials.\n");
+
+      // Replace with your Wi-Fi credentials
+      strcpy(ssid, "Heli");
+      strcpy(pass, "helikothari");
+
+      // Save credentials to NVS
+      nvs_set_str(my_handle, "ssid", ssid);
+      nvs_set_str(my_handle, "pass", pass);
+      nvs_commit(my_handle);
+    } else if (err != ESP_OK) {
+      Serial.printf("Error (%s) reading from NVS!\n", esp_err_to_name(err));
+    } else {
+      Serial.printf("Done. SSID: %s, PASS: %s\n", ssid, pass);
+    }
+  }
+
+  // Close NVS
+  nvs_close(my_handle);
+}
 
 void setup() {
-  Serial.begin(115200);
-  dht.begin();
+  // Initialize Serial for debugging
+  Serial.begin(9600);
+  delay(1000);
 
-  if (!display.begin(SSD1306_I2C_ADDRESS, 0x3C)) {
-    Serial.println("SSD1306 allocation failed");
-    for (;;);
+  // Initialize the TFT display
+  tft.begin();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(2);
+
+  // Initialize I²C
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  // Initialize the sensor
+  if (!aht.begin()) {
+    Serial.println("Could not find AHT20 sensor! Check wiring.");
+    while (1) delay(10);
   }
-  display.display();
-  delay(2000);
-  display.clearDisplay();
+  Serial.println("AHT20 sensor initialized.");
 
-  WiFi.begin(ssid, password);
+  // Retrieve Wi-Fi credentials
+  nvs_access();
+
+  // Connect to Wi-Fi
+  Serial.println();
+  Serial.print("Connecting to Wi-Fi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, pass);
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("WiFi connected");
+  Serial.println("\nWi-Fi connected");
+  Serial.println("IP Address: " + WiFi.localIP().toString());
 }
 
 void loop() {
