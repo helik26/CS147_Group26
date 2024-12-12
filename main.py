@@ -21,7 +21,7 @@ char ssid[50];  // Wi-Fi SSID
 char pass[50];  // Wi-Fi Password
 
 // Server Information
-const char kHostname[] = "34.201.245.55";  // Replace with your server IP
+const char kHostname[] = "18.227.140.251";  // Replace with your server IP
 const int kPort = 5000;  // Replace with your server's port
 
 // Timing Configuration
